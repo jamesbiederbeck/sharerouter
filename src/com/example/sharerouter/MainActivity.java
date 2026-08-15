@@ -35,11 +35,7 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, dp(48), pad, pad);
 
-        TextView title = new TextView(this);
-        title.setText("Tracking URL Regex Filters");
-        title.setTextSize(20);
-        title.setPadding(0, 0, 0, dp(16));
-        root.addView(title);
+        root.addView(TopBar.build(this, MainActivity.class, "Tracking URL Regex Filters"));
 
         TextView testLabel = new TextView(this);
         testLabel.setText("Test a regex");
