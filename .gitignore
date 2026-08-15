@@ -2,3 +2,4 @@ out/
 *.apk
 *.apk.idsig
 debug.keystore
+tools/

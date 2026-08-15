@@ -27,6 +27,10 @@
         </activity>
 
         <activity
+            android:name=".JsEngineProbeActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".GpxActivity"
             android:exported="true">
 
