@@ -35,6 +35,19 @@ KEYSTORE = debug.keystore
 DEVICE ?= $(or $(ANDROID_DEVICE),$(shell $(ADB) devices | awk 'NR>1 && $$2=="device" {print $$1; exit}'))
 ADB = ../platform-tools/adb
 
+# Native llama.cpp JNI shim (arm64-v8a only — this device's only ABI).
+# LLAMA_CPP_DIR must point at a llama.cpp checkout already CMake-built for
+# arm64-v8a (see jni/CMakeLists.txt); that build is out-of-tree and not
+# reproduced here since llama.cpp is not vendored into this repo.
+NDK ?= /usr/lib/android-ndk
+LLAMA_CPP_DIR ?= $(HOME)/code/ml/llama.cpp
+LLAMA_CPP_BUILD_DIR = $(LLAMA_CPP_DIR)/build-android
+NATIVE_ABI = arm64-v8a
+JNI_DIR = jni
+JNI_BUILD_DIR = $(JNI_DIR)/build
+NATIVE_LIBS_DIR = $(OUT)/lib/$(NATIVE_ABI)
+NATIVE_STAMP = $(OUT)/.native_libs_stamp
+
 all: $(ALIGNED)
 
 $(R8_JAR):
@@ -42,8 +55,10 @@ $(R8_JAR):
 	curl -sL $(R8_URL) -o $@
 	echo "$(R8_SHA256)  $@" | sha256sum -c -
 
+# Only clears its own outputs (not the whole $(OUT) dir) so it doesn't race
+# with $(NATIVE_STAMP)/$(RESZIP), which also live under $(OUT).
 $(DEX): $(SRC) $(LIBS) $(R8_JAR)
-	rm -rf $(OUT)
+	rm -rf $(CLASSES) $(OUT)/classes*.dex
 	mkdir -p $(CLASSES)
 	javac -source 8 -target 8 -classpath $(ANDROID_JAR):$(LIBS_CP) -d $(CLASSES) $(SRC)
 	$(D8) --lib $(ANDROID_JAR) --min-api 24 --output $(OUT) $$(find $(CLASSES) -name "*.class") $(LIBS)
@@ -54,7 +69,23 @@ $(RESZIP): $(RES)
 	mkdir -p $(OUT)
 	$(AAPT2) compile --dir res -o $(RESZIP)
 
-$(UNSIGNED): $(DEX) $(RESZIP) AndroidManifest.xml
+$(NATIVE_STAMP): $(JNI_DIR)/llama_jni.cpp $(JNI_DIR)/CMakeLists.txt
+	cmake -B $(JNI_BUILD_DIR) -G Ninja -S $(JNI_DIR) \
+		-DCMAKE_TOOLCHAIN_FILE=$(NDK)/build/cmake/android.toolchain.cmake \
+		-DANDROID_ABI=$(NATIVE_ABI) \
+		-DANDROID_PLATFORM=android-24 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DLLAMA_CPP_DIR=$(LLAMA_CPP_DIR)
+	ninja -C $(JNI_BUILD_DIR)
+	mkdir -p $(NATIVE_LIBS_DIR)
+	cp $(JNI_BUILD_DIR)/libllama_jni.so $(NATIVE_LIBS_DIR)/
+	cp $(LLAMA_CPP_BUILD_DIR)/bin/libllama.so $(NATIVE_LIBS_DIR)/
+	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml.so $(NATIVE_LIBS_DIR)/
+	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml-base.so $(NATIVE_LIBS_DIR)/
+	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml-cpu.so $(NATIVE_LIBS_DIR)/
+	touch $@
+
+$(UNSIGNED): $(DEX) $(RESZIP) $(NATIVE_STAMP) AndroidManifest.xml
 	$(AAPT2) link \
 		-I $(ANDROID_JAR) \
 		--manifest AndroidManifest.xml \
@@ -63,6 +94,7 @@ $(UNSIGNED): $(DEX) $(RESZIP) AndroidManifest.xml
 		$(RESZIP) \
 		-o $(UNSIGNED)
 	zip -j -u $(UNSIGNED) $(OUT)/classes*.dex
+	(cd $(OUT) && zip -u ../$(UNSIGNED) lib/$(NATIVE_ABI)/*.so)
 
 $(ALIGNED): $(UNSIGNED)
 	rm -f $(ALIGNED)
@@ -92,4 +124,4 @@ keystore:
 		-dname "CN=Android Debug,O=Android,C=US"
 
 clean:
-	rm -rf out *.apk
+	rm -rf out *.apk $(JNI_BUILD_DIR)
