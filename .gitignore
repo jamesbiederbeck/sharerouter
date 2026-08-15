@@ -3,3 +3,4 @@ out/
 *.apk.idsig
 debug.keystore
 tools/
+jni/build/
