@@ -174,6 +174,20 @@ install: $(ALIGNED)
 run: install
 	$(ADB) -s $(DEVICE) shell am start -n $(APP_ID)/.MainActivity
 
+# Plain-JVM unit tests for pure-Java logic (no android.jar/device needed —
+# android.jar is stub-only outside a device or Robolectric). Currently just
+# TrackingUrlCleaner; add more test/ sources as more logic gets extracted
+# out of the Android-dependent Activities.
+TEST_CLASSES = out/test-classes
+.PHONY: test
+test:
+	rm -rf $(TEST_CLASSES)
+	mkdir -p $(TEST_CLASSES)
+	javac -d $(TEST_CLASSES) \
+		src/dev/nobugs/sharerouter/TrackingUrlCleaner.java \
+		test/dev/nobugs/sharerouter/TrackingUrlCleanerTest.java
+	java -cp $(TEST_CLASSES) dev.nobugs.sharerouter.TrackingUrlCleanerTest
+
 keystore:
 	keytool -genkeypair \
 		-keystore $(KEYSTORE) \

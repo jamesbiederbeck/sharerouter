@@ -13,9 +13,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.net.URLEncoder;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -26,14 +23,6 @@ public class ShareActivity extends Activity {
     private static final String WALLABAG_BASE_URL = "https://your-wallabag.example.com";
 
     private static final Pattern URL_PATTERN = Pattern.compile("https?://\\S+");
-
-    private static final Set<String> TRACKING_PARAMS = new HashSet<>(Arrays.asList(
-            "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-            "utm_id", "utm_source_platform",
-            "fbclid", "gclid", "msclkid", "mc_eid", "_openstat",
-            "yclid", "igshid", "dclid", "gbraid", "wbraid",
-            "si"
-    ));
 
     private String sharedText;
     private TextView resultView;
@@ -173,14 +162,7 @@ public class ShareActivity extends Activity {
 
     private String stripTrackingParams(String url) {
         try {
-            Uri uri = Uri.parse(url);
-            Uri.Builder builder = uri.buildUpon().clearQuery();
-            for (String key : uri.getQueryParameterNames()) {
-                if (!TRACKING_PARAMS.contains(key.toLowerCase())) {
-                    builder.appendQueryParameter(key, uri.getQueryParameter(key));
-                }
-            }
-            return builder.build().toString();
+            return TrackingUrlCleaner.stripTrackingParams(url);
         } catch (Exception e) {
             return url;
         }
