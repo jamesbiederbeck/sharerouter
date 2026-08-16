@@ -77,7 +77,7 @@ public class PawActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, dp(48), pad, pad);
 
-        root.addView(TopBar.build(this, PawActivity.class, "PAW Inference"));
+        root.addView(TopBar.build(this, PawActivity.class, "GPT Cleaning"));
 
         statusView = new TextView(this);
         statusView.setText("Loading model...");

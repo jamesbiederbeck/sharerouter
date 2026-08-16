@@ -1,31 +1,25 @@
 package dev.nobugs.sharerouter;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
-import java.util.List;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
+/**
+ * Landing screen. Share Router's actual work happens as a share target
+ * (see ShareActivity) — this screen just explains that and links to the
+ * configuration/secondary screens, rather than dropping straight into the
+ * regex filter tester the way this activity used to.
+ */
 public class MainActivity extends Activity {
-
-    private EditText inputField;
-    private EditText regexField;
-    private TextView outputView;
-    private LinearLayout filterListContainer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         buildUI();
-        refreshFilterList();
     }
 
     private void buildUI() {
@@ -35,176 +29,53 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, dp(48), pad, pad);
 
-        root.addView(TopBar.build(this, MainActivity.class, "Tracking URL Regex Filters"));
+        root.addView(TopBar.build(this, MainActivity.class, "Share Router"));
 
-        TextView testLabel = new TextView(this);
-        testLabel.setText("Test a regex");
-        root.addView(testLabel);
+        TextView intro = new TextView(this);
+        intro.setPadding(0, dp(8), 0, dp(24));
+        intro.setText(
+                "Share a link to Share Router the way you'd share it to any "
+                        + "other app. It finds the URL, strips known tracking "
+                        + "parameters (utm_*, fbclid, gclid, YouTube's si/is, "
+                        + "and more), and gives you a clean link to copy, open, "
+                        + "or share onward.\n\n"
+                        + "Nothing to set up for that — it works out of the box. "
+                        + "Everything below is optional configuration.");
+        root.addView(intro);
 
-        inputField = new EditText(this);
-        inputField.setHint("String to clean");
-        root.addView(inputField);
+        Button filtersBtn = new Button(this);
+        filtersBtn.setText("Manage Tracking Filters");
+        filtersBtn.setOnClickListener(v ->
+                startActivity(new Intent(this, FilterConfigActivity.class)));
+        root.addView(filtersBtn);
 
-        regexField = new EditText(this);
-        regexField.setHint("Regex to apply");
-        root.addView(regexField);
+        TextView filtersHint = new TextView(this);
+        filtersHint.setPadding(0, dp(4), 0, dp(24));
+        filtersHint.setText(
+                "The stock tracking-parameter list won't catch everything. "
+                        + "Add your own regex filters here for trackers it misses.");
+        root.addView(filtersHint);
 
-        TextView outputLabel = new TextView(this);
-        outputLabel.setText("Output");
-        outputLabel.setPadding(0, dp(12), 0, 0);
-        root.addView(outputLabel);
+        if (BuildConfig.PAW_ENABLED) {
+            Button gptBtn = new Button(this);
+            gptBtn.setText("GPT Cleaning");
+            gptBtn.setOnClickListener(v ->
+                    startActivity(new Intent().setClassName(this, "dev.nobugs.sharerouter.PawActivity")));
+            root.addView(gptBtn);
 
-        outputView = new TextView(this);
-        outputView.setPadding(0, dp(4), 0, dp(8));
-        outputView.setTextIsSelectable(true);
-        root.addView(outputView);
-
-        TextWatcher watcher = new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                updateOutput();
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {}
-        };
-        inputField.addTextChangedListener(watcher);
-        regexField.addTextChangedListener(watcher);
-
-        Button saveBtn = new Button(this);
-        saveBtn.setText("Save as Filter");
-        saveBtn.setOnClickListener(v -> saveFilter());
-        root.addView(saveBtn);
-
-        TextView filtersLabel = new TextView(this);
-        filtersLabel.setText("Saved Filters");
-        filtersLabel.setPadding(0, dp(24), 0, dp(8));
-        root.addView(filtersLabel);
-
-        filterListContainer = new LinearLayout(this);
-        filterListContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(filterListContainer);
+            TextView gptHint = new TextView(this);
+            gptHint.setPadding(0, dp(4), 0, 0);
+            gptHint.setText(
+                    "Experimental: runs shared text through a small on-device "
+                            + "language model instead of fixed regex rules. Slower, "
+                            + "and only worth it for cases the filters above can't "
+                            + "express.");
+            root.addView(gptHint);
+        }
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         setContentView(scroll);
-    }
-
-    private void updateOutput() {
-        String result = inputField.getText().toString();
-        for (String savedRegex : RegexFilterStore.load(this)) {
-            try {
-                result = result.replaceAll(savedRegex, "");
-            } catch (PatternSyntaxException e) {
-                // skip filters that no longer compile
-            }
-        }
-
-        String regex = regexField.getText().toString();
-        if (!regex.isEmpty()) {
-            try {
-                result = result.replaceAll(regex, "");
-            } catch (PatternSyntaxException e) {
-                outputView.setText("Invalid regex: " + e.getMessage());
-                return;
-            }
-        }
-
-        outputView.setText(result);
-    }
-
-    private void saveFilter() {
-        String regex = regexField.getText().toString();
-        if (regex.isEmpty()) {
-            Toast.makeText(this, "Enter a regex first", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            Pattern.compile(regex);
-        } catch (PatternSyntaxException e) {
-            Toast.makeText(this, "Invalid regex: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        List<String> filters = RegexFilterStore.load(this);
-        if (filters.contains(regex)) {
-            Toast.makeText(this, "Filter already exists", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        filters.add(regex);
-        RegexFilterStore.save(this, filters);
-        refreshFilterList();
-        Toast.makeText(this, "Filter saved", Toast.LENGTH_SHORT).show();
-    }
-
-    private void refreshFilterList() {
-        if (outputView != null) {
-            updateOutput();
-        }
-        filterListContainer.removeAllViews();
-        List<String> filters = RegexFilterStore.load(this);
-        if (filters.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText("No filters yet.");
-            filterListContainer.addView(empty);
-            return;
-        }
-        for (int i = 0; i < filters.size(); i++) {
-            String filter = filters.get(i);
-            int index = i;
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setPadding(0, dp(4), 0, dp(4));
-
-            TextView label = new TextView(this);
-            label.setText(filter);
-            label.setTextIsSelectable(true);
-            LinearLayout.LayoutParams lp =
-                    new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            label.setLayoutParams(lp);
-            row.addView(label);
-
-            Button upBtn = new Button(this);
-            upBtn.setText("↑");
-            upBtn.setEnabled(index > 0);
-            upBtn.setOnClickListener(v -> moveFilter(index, index - 1));
-            row.addView(upBtn);
-
-            Button downBtn = new Button(this);
-            downBtn.setText("↓");
-            downBtn.setEnabled(index < filters.size() - 1);
-            downBtn.setOnClickListener(v -> moveFilter(index, index + 1));
-            row.addView(downBtn);
-
-            Button removeBtn = new Button(this);
-            removeBtn.setText("Remove");
-            removeBtn.setOnClickListener(v -> removeFilter(index));
-            row.addView(removeBtn);
-
-            filterListContainer.addView(row);
-        }
-    }
-
-    private void moveFilter(int fromIndex, int toIndex) {
-        List<String> filters = RegexFilterStore.load(this);
-        if (toIndex < 0 || toIndex >= filters.size()) {
-            return;
-        }
-        String filter = filters.remove(fromIndex);
-        filters.add(toIndex, filter);
-        RegexFilterStore.save(this, filters);
-        refreshFilterList();
-    }
-
-    private void removeFilter(int index) {
-        List<String> filters = RegexFilterStore.load(this);
-        filters.remove(index);
-        RegexFilterStore.save(this, filters);
-        refreshFilterList();
     }
 
     private int dp(int value) {

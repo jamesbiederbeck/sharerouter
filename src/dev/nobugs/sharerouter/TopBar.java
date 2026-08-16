@@ -9,9 +9,9 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 /**
- * Shared hamburger/title bar used by MainActivity and (when built with
- * PAW=1, see BuildConfig.PAW_ENABLED) PawActivity/LicensesActivity to
- * navigate between them.
+ * Shared hamburger/title bar used across activities to navigate between
+ * them. "GPT Cleaning" and "Licenses" only appear when built with PAW=1
+ * (BuildConfig.PAW_ENABLED) — Home and Tracking Filters are always present.
  *
  * Navigates to the PAW-only activities by class name string rather than a
  * .class literal so this file compiles unchanged whether or not those
@@ -19,6 +19,8 @@ import android.widget.TextView;
  */
 final class TopBar {
 
+    private static final String MAIN_ACTIVITY_CLASS = "dev.nobugs.sharerouter.MainActivity";
+    private static final String FILTER_CONFIG_ACTIVITY_CLASS = "dev.nobugs.sharerouter.FilterConfigActivity";
     private static final String PAW_ACTIVITY_CLASS = "dev.nobugs.sharerouter.PawActivity";
     private static final String LICENSES_ACTIVITY_CLASS = "dev.nobugs.sharerouter.LicensesActivity";
 
@@ -44,13 +46,15 @@ final class TopBar {
 
         hamburger.setOnClickListener(v -> {
             PopupMenu popup = new PopupMenu(activity, hamburger);
-            popup.getMenu().add("Regex Filters");
+            popup.getMenu().add("Home");
+            popup.getMenu().add("Tracking Filters");
             if (BuildConfig.PAW_ENABLED) {
-                popup.getMenu().add("PAW Inference");
+                popup.getMenu().add("GPT Cleaning");
                 popup.getMenu().add("Licenses");
             }
             popup.setOnMenuItemClickListener(item -> {
                 String choice = item.getTitle().toString();
+
                 if ("Licenses".equals(choice)) {
                     // A subscreen, not a tab — push it onto the back stack
                     // rather than finish()ing the current activity.
@@ -58,15 +62,23 @@ final class TopBar {
                     return true;
                 }
 
-                boolean wantsMain = "Regex Filters".equals(choice);
-                boolean alreadyThere = wantsMain
-                        ? currentActivity == MainActivity.class
-                        : currentActivity.getName().equals(PAW_ACTIVITY_CLASS);
-                if (!alreadyThere) {
-                    Intent intent = wantsMain
-                            ? new Intent(activity, MainActivity.class)
-                            : new Intent().setClassName(activity, PAW_ACTIVITY_CLASS);
-                    activity.startActivity(intent);
+                String targetClass;
+                switch (choice) {
+                    case "Home":
+                        targetClass = MAIN_ACTIVITY_CLASS;
+                        break;
+                    case "Tracking Filters":
+                        targetClass = FILTER_CONFIG_ACTIVITY_CLASS;
+                        break;
+                    case "GPT Cleaning":
+                        targetClass = PAW_ACTIVITY_CLASS;
+                        break;
+                    default:
+                        return true;
+                }
+
+                if (!currentActivity.getName().equals(targetClass)) {
+                    activity.startActivity(new Intent().setClassName(activity, targetClass));
                     activity.finish();
                 }
                 return true;

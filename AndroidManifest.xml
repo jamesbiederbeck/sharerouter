@@ -30,6 +30,10 @@
             android:name=".JsEngineProbeActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".FilterConfigActivity"
+            android:exported="false" />
+
         <!-- PAW:BEGIN -->
         <activity
             android:name=".PawActivity"

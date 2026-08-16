@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Share Router</string>
-    <string name="paw_share_label">PAW Inference</string>
+    <string name="paw_share_label">GPT Cleaning</string>
 </resources>
