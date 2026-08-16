@@ -103,14 +103,21 @@ $(RESZIP): $(RES)
 # For PAW=0, strips the <!-- PAW:BEGIN --> ... <!-- PAW:END --> block (the
 # PawActivity <activity> entry) out of the manifest, rather than hand
 # maintaining a second full manifest that could drift.
+#
+# .PHONY (like $(BUILD_CONFIG)) because the output depends on $(PAW), not
+# just AndroidManifest.xml's mtime — a plain file-mtime rule would leave a
+# stale manifest from a previous PAW=0/1 run untouched by a later run with
+# the other value, since the real source file never changed.
 GEN_MANIFEST = $(OUT)/AndroidManifest.xml
+.PHONY: $(GEN_MANIFEST)
 $(GEN_MANIFEST): AndroidManifest.xml
 	mkdir -p $(OUT)
 ifeq ($(PAW),1)
-	cp AndroidManifest.xml $(GEN_MANIFEST)
+	cp AndroidManifest.xml $@.tmp
 else
-	sed '/<!-- PAW:BEGIN -->/,/<!-- PAW:END -->/d' AndroidManifest.xml > $(GEN_MANIFEST)
+	sed '/<!-- PAW:BEGIN -->/,/<!-- PAW:END -->/d' AndroidManifest.xml > $@.tmp
 endif
+	cmp -s $@.tmp $@ 2>/dev/null && rm $@.tmp || mv $@.tmp $@
 
 $(NATIVE_STAMP): $(JNI_DIR)/llama_jni.cpp $(JNI_DIR)/CMakeLists.txt
 	cmake -B $(JNI_BUILD_DIR) -G Ninja -S $(JNI_DIR) \
