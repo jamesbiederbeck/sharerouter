@@ -2,6 +2,7 @@ package com.example.sharerouter;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -185,11 +186,14 @@ public class PawActivity extends Activity {
         String prompt = promptTemplate.replace("{INPUT_PLACEHOLDER}", input);
         runBtn.setEnabled(false);
         statusView.setText("Generating...");
+        Log.i("PawActivity", "runInference: input=" + input + " promptLen=" + prompt.length());
         new Thread(() -> {
             String result;
             try {
                 result = bridge.generate(prompt, 128);
+                Log.i("PawActivity", "runInference: result=" + result);
             } catch (Exception e) {
+                Log.e("PawActivity", "runInference failed", e);
                 result = "Error: " + e;
             }
             String finalResult = result;
