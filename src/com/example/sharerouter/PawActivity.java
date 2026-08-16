@@ -7,24 +7,33 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Runs a compiled ProgramAsWeights (.paw) LoRA adapter through native
+ * Runs a compiled ProgramAsWeights (PAW) LoRA adapter through native
  * llama.cpp (see LlamaBridge / jni/llama_jni.cpp) and shows the output for a
  * given input, the same shape as MainActivity's regex tester.
  *
- * Expects two files under getExternalFilesDir(null)/paw/, pushed manually:
- *   model.gguf   - the base GGUF model the .paw's adapter was trained against
- *   program.paw  - the compiled .paw archive (a zip containing adapter.gguf)
+ * The base model is fetched over HTTP the same way js_sdk in
+ * programasweights-js does (see BASE_MODEL_URL below), since it's large
+ * (~133MB) and publicly hosted. The adapter/prompt template are this
+ * specific PAW program's own compiled output — a locally-compiled artifact,
+ * never published to HF's paw-programs repo — so they're bundled directly
+ * in assets/paw/ instead of fetched.
  */
 public class PawActivity extends Activity {
+
+    // From the .paw's meta.json ("local_sdk"/"js_sdk" base_model).
+    private static final String BASE_MODEL_URL =
+            "https://huggingface.co/programasweights/GPT2-GGUF-Q8_0/resolve/main/gpt2-q8_0.gguf";
 
     private EditText inputField;
     private TextView outputView;
@@ -32,19 +41,19 @@ public class PawActivity extends Activity {
     private Button runBtn;
 
     private File modelFile;
-    private File pawArchiveFile;
-    private File adapterExtracted;
+    private File adapterFile;
 
     private volatile LlamaBridge bridge;
+    private volatile String promptTemplate;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        File pawDir = new File(getExternalFilesDir(null), "paw");
+        File pawDir = new File(getFilesDir(), "paw");
+        pawDir.mkdirs();
         modelFile = new File(pawDir, "model.gguf");
-        pawArchiveFile = new File(pawDir, "program.paw");
-        adapterExtracted = new File(getCacheDir(), "adapter.gguf");
+        adapterFile = new File(pawDir, "adapter.gguf");
 
         buildUI();
         new Thread(this::loadModel).start();
@@ -94,27 +103,24 @@ public class PawActivity extends Activity {
     }
 
     private void loadModel() {
-        if (!modelFile.exists()) {
-            report("Missing base model. Push it with:\n"
-                    + "adb push <model.gguf> " + modelFile.getAbsolutePath());
-            return;
-        }
-        if (!pawArchiveFile.exists()) {
-            report("Missing .paw archive. Push it with:\n"
-                    + "adb push <program>.paw " + pawArchiveFile.getAbsolutePath());
-            return;
-        }
-
         try {
-            extractAdapter();
+            if (!modelFile.exists()) {
+                report("Downloading base model (~133MB)...");
+                downloadTo(BASE_MODEL_URL, modelFile);
+            }
+            if (!adapterFile.exists()) {
+                copyAsset("paw/adapter.gguf", adapterFile);
+            }
+            promptTemplate = readAsset("paw/prompt_template.txt");
         } catch (IOException e) {
-            report("Failed to extract adapter.gguf from .paw: " + e);
+            report("Failed to load PAW assets: " + e);
             return;
         }
 
         try {
+            // n_ctx=2048 matches the .paw's meta.json ("local_sdk"/"js_sdk" n_ctx).
             LlamaBridge loaded = new LlamaBridge(
-                    modelFile.getAbsolutePath(), adapterExtracted.getAbsolutePath(), 512);
+                    modelFile.getAbsolutePath(), adapterFile.getAbsolutePath(), 2048);
             bridge = loaded;
             runOnUiThread(() -> {
                 statusView.setText("Model loaded.");
@@ -125,28 +131,58 @@ public class PawActivity extends Activity {
         }
     }
 
-    private void extractAdapter() throws IOException {
-        try (ZipFile zip = new ZipFile(pawArchiveFile)) {
-            ZipEntry entry = zip.getEntry("adapter.gguf");
-            if (entry == null) {
-                throw new IOException("program.paw has no adapter.gguf entry");
+    private void copyAsset(String assetPath, File dest) throws IOException {
+        try (InputStream in = getAssets().open(assetPath);
+             OutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
             }
-            try (InputStream in = zip.getInputStream(entry);
-                 OutputStream out = new FileOutputStream(adapterExtracted)) {
-                byte[] buf = new byte[8192];
+        }
+    }
+
+    private String readAsset(String assetPath) throws IOException {
+        try (InputStream in = getAssets().open(assetPath)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static void downloadTo(String urlStr, File dest) throws IOException {
+        File tmp = new File(dest.getParentFile(), dest.getName() + ".tmp");
+        HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+        try {
+            conn.setInstanceFollowRedirects(true);
+            try (InputStream in = conn.getInputStream();
+                 OutputStream out = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[64 * 1024];
                 int n;
                 while ((n = in.read(buf)) > 0) {
                     out.write(buf, 0, n);
                 }
             }
+        } finally {
+            conn.disconnect();
+        }
+        if (!tmp.renameTo(dest)) {
+            throw new IOException("Failed to move " + tmp + " to " + dest);
         }
     }
 
     private void runInference() {
-        String prompt = inputField.getText().toString();
-        if (prompt.isEmpty() || bridge == null) {
+        String input = inputField.getText().toString();
+        if (input.isEmpty() || bridge == null) {
             return;
         }
+        // The adapter was trained against this exact wrapped format, not raw input
+        // (see the PAW program's prompt_template.txt) — raw text won't trigger it.
+        String prompt = promptTemplate.replace("{INPUT_PLACEHOLDER}", input);
         runBtn.setEnabled(false);
         statusView.setText("Generating...");
         new Thread(() -> {

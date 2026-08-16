@@ -64,6 +64,7 @@ $(DEX): $(SRC) $(LIBS) $(R8_JAR)
 	$(D8) --lib $(ANDROID_JAR) --min-api 24 --output $(OUT) $$(find $(CLASSES) -name "*.class") $(LIBS)
 
 RES := $(shell find res -type f)
+ASSETS := $(shell find assets -type f)
 
 $(RESZIP): $(RES)
 	mkdir -p $(OUT)
@@ -85,12 +86,13 @@ $(NATIVE_STAMP): $(JNI_DIR)/llama_jni.cpp $(JNI_DIR)/CMakeLists.txt
 	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml-cpu.so $(NATIVE_LIBS_DIR)/
 	touch $@
 
-$(UNSIGNED): $(DEX) $(RESZIP) $(NATIVE_STAMP) AndroidManifest.xml
+$(UNSIGNED): $(DEX) $(RESZIP) $(NATIVE_STAMP) $(ASSETS) AndroidManifest.xml
 	$(AAPT2) link \
 		-I $(ANDROID_JAR) \
 		--manifest AndroidManifest.xml \
 		--min-sdk-version 24 \
 		--target-sdk-version 33 \
+		-A assets \
 		$(RESZIP) \
 		-o $(UNSIGNED)
 	zip -j -u $(UNSIGNED) $(OUT)/classes*.dex

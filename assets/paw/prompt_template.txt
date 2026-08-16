@@ -1,0 +1,24 @@
+[PSEUDO_PROGRAM]  
+Task: Remove all URL query parameters that start with specific tracking keywords: is, campaign, ref, dplnkId, tag. Strip these parameters by removing the entire key-value pair (e.g., is=123, campaign=xyz) from the URL, preserving only the base URL and any other valid parameters. Handle multiple occurrences and parameters with no values (e.g., &ref=). Output the cleaned URL with no tracking parameters.  
+
+Examples:  
+Input: https://example.com/page?is=123&campaign=abc&ref=xyz&dplnkId=456&tag=live  
+Output: https://example.com/page  
+
+Input: https://example.com?tag=dev&ref=none&is=0  
+Output: https://example.com  
+
+Input: https://example.com/path?campaign=summer&ref=  
+Output: https://example.com/path  
+
+Input: https://example.com?is=1&tag=2  
+Output: https://example.com  
+
+Input: https://example.com?no_track=1&ref=abc&campaign=2024  
+Output: https://example.com?no_track=1  
+
+[END_PSEUDO_PROGRAM]
+
+[INPUT]
+{INPUT_PLACEHOLDER}
+[END_INPUT]
