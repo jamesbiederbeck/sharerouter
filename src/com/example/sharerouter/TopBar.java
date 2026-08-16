@@ -8,8 +8,17 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
-/** Shared hamburger/title bar used by MainActivity and PawActivity to switch between them. */
+/**
+ * Shared hamburger/title bar used by MainActivity and (when built with
+ * PAW=1, see BuildConfig.PAW_ENABLED) PawActivity to switch between them.
+ *
+ * Navigates to PawActivity by class name string rather than a PawActivity.class
+ * literal so this file compiles unchanged whether or not PawActivity.java is
+ * part of the build (the minimal/PAW=0 build excludes it entirely).
+ */
 final class TopBar {
+
+    private static final String PAW_ACTIVITY_CLASS = "com.example.sharerouter.PawActivity";
 
     private TopBar() {}
 
@@ -34,13 +43,19 @@ final class TopBar {
         hamburger.setOnClickListener(v -> {
             PopupMenu popup = new PopupMenu(activity, hamburger);
             popup.getMenu().add("Regex Filters");
-            popup.getMenu().add("PAW Inference");
+            if (BuildConfig.PAW_ENABLED) {
+                popup.getMenu().add("PAW Inference");
+            }
             popup.setOnMenuItemClickListener(item -> {
-                Class<?> target = "Regex Filters".equals(item.getTitle())
-                        ? MainActivity.class
-                        : PawActivity.class;
-                if (target != currentActivity) {
-                    activity.startActivity(new Intent(activity, target));
+                boolean wantsMain = "Regex Filters".equals(item.getTitle());
+                boolean alreadyThere = wantsMain
+                        ? currentActivity == MainActivity.class
+                        : currentActivity.getName().equals(PAW_ACTIVITY_CLASS);
+                if (!alreadyThere) {
+                    Intent intent = wantsMain
+                            ? new Intent(activity, MainActivity.class)
+                            : new Intent().setClassName(activity, PAW_ACTIVITY_CLASS);
+                    activity.startActivity(intent);
                     activity.finish();
                 }
                 return true;

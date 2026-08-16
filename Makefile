@@ -1,6 +1,18 @@
 APP_ID = com.example.sharerouter
 
-SRC := $(shell find src -name "*.java")
+# PAW=1 (default): full build with native llama.cpp/PAW inference support.
+# PAW=0: minimal build — PawActivity/LlamaBridge excluded from compilation
+# entirely (not just missing native libs), the PawActivity manifest entry
+# stripped, and the hamburger menu's "PAW Inference" item hidden
+# (BuildConfig.PAW_ENABLED, see $(BUILD_CONFIG) below).
+PAW ?= 1
+
+ALL_SRC := $(shell find src -name "*.java")
+ifeq ($(PAW),1)
+SRC := $(ALL_SRC)
+else
+SRC := $(filter-out src/com/example/sharerouter/PawActivity.java src/com/example/sharerouter/LlamaBridge.java,$(ALL_SRC))
+endif
 
 LIBS := libs/javascriptengine-1.1.0.jar \
         libs/androidx-core-slice.jar \
@@ -13,6 +25,10 @@ OUT = out
 CLASSES = $(OUT)/classes
 DEX = $(OUT)/classes.dex
 RESZIP = $(OUT)/compiled_res.zip
+
+GEN_DIR = $(OUT)/gen
+BUILD_CONFIG = $(GEN_DIR)/com/example/sharerouter/BuildConfig.java
+PAW_ENABLED = $(if $(filter 1,$(PAW)),true,false)
 
 UNSIGNED = unsigned.apk
 ALIGNED = aligned.apk
@@ -40,6 +56,7 @@ ADB = ../platform-tools/adb
 # arm64-v8a (see jni/CMakeLists.txt); that build is out-of-tree and not
 # reproduced here since llama.cpp is not vendored into this repo.
 NDK ?= /usr/lib/android-ndk
+LLVM_STRIP = $(NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
 LLAMA_CPP_DIR ?= $(HOME)/code/ml/llama.cpp
 LLAMA_CPP_BUILD_DIR = $(LLAMA_CPP_DIR)/build-android
 NATIVE_ABI = arm64-v8a
@@ -55,20 +72,45 @@ $(R8_JAR):
 	curl -sL $(R8_URL) -o $@
 	echo "$(R8_SHA256)  $@" | sha256sum -c -
 
+# Regenerated every build (cheap) but only touched if the content actually
+# changes, so switching PAW back and forth doesn't force a needless rebuild
+# when it ends up back at the same value.
+.PHONY: $(BUILD_CONFIG)
+$(BUILD_CONFIG):
+	mkdir -p $(dir $@)
+	echo 'package com.example.sharerouter; final class BuildConfig { static final boolean PAW_ENABLED = $(PAW_ENABLED); private BuildConfig() {} }' > $@.tmp
+	cmp -s $@.tmp $@ 2>/dev/null && rm $@.tmp || mv $@.tmp $@
+
 # Only clears its own outputs (not the whole $(OUT) dir) so it doesn't race
 # with $(NATIVE_STAMP)/$(RESZIP), which also live under $(OUT).
-$(DEX): $(SRC) $(LIBS) $(R8_JAR)
+$(DEX): $(SRC) $(BUILD_CONFIG) $(LIBS) $(R8_JAR)
 	rm -rf $(CLASSES) $(OUT)/classes*.dex
 	mkdir -p $(CLASSES)
-	javac -source 8 -target 8 -classpath $(ANDROID_JAR):$(LIBS_CP) -d $(CLASSES) $(SRC)
+	javac -source 8 -target 8 -classpath $(ANDROID_JAR):$(LIBS_CP) -d $(CLASSES) $(SRC) $(BUILD_CONFIG)
 	$(D8) --lib $(ANDROID_JAR) --min-api 24 --output $(OUT) $$(find $(CLASSES) -name "*.class") $(LIBS)
 
 RES := $(shell find res -type f)
+ifeq ($(PAW),1)
 ASSETS := $(shell find assets -type f)
+else
+ASSETS :=
+endif
 
 $(RESZIP): $(RES)
 	mkdir -p $(OUT)
 	$(AAPT2) compile --dir res -o $(RESZIP)
+
+# For PAW=0, strips the <!-- PAW:BEGIN --> ... <!-- PAW:END --> block (the
+# PawActivity <activity> entry) out of the manifest, rather than hand
+# maintaining a second full manifest that could drift.
+GEN_MANIFEST = $(OUT)/AndroidManifest.xml
+$(GEN_MANIFEST): AndroidManifest.xml
+	mkdir -p $(OUT)
+ifeq ($(PAW),1)
+	cp AndroidManifest.xml $(GEN_MANIFEST)
+else
+	sed '/<!-- PAW:BEGIN -->/,/<!-- PAW:END -->/d' AndroidManifest.xml > $(GEN_MANIFEST)
+endif
 
 $(NATIVE_STAMP): $(JNI_DIR)/llama_jni.cpp $(JNI_DIR)/CMakeLists.txt
 	cmake -B $(JNI_BUILD_DIR) -G Ninja -S $(JNI_DIR) \
@@ -84,19 +126,30 @@ $(NATIVE_STAMP): $(JNI_DIR)/llama_jni.cpp $(JNI_DIR)/CMakeLists.txt
 	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml.so $(NATIVE_LIBS_DIR)/
 	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml-base.so $(NATIVE_LIBS_DIR)/
 	cp $(LLAMA_CPP_BUILD_DIR)/bin/libggml-cpu.so $(NATIVE_LIBS_DIR)/
+	$(LLVM_STRIP) $(NATIVE_LIBS_DIR)/*.so
 	touch $@
 
-$(UNSIGNED): $(DEX) $(RESZIP) $(NATIVE_STAMP) $(ASSETS) AndroidManifest.xml
+ifeq ($(PAW),1)
+NATIVE_DEP = $(NATIVE_STAMP)
+ASSET_FLAG = -A assets
+NATIVE_ZIP_CMD = (cd $(OUT) && zip -u ../$(UNSIGNED) lib/$(NATIVE_ABI)/*.so)
+else
+NATIVE_DEP =
+ASSET_FLAG =
+NATIVE_ZIP_CMD = true
+endif
+
+$(UNSIGNED): $(DEX) $(RESZIP) $(NATIVE_DEP) $(ASSETS) $(GEN_MANIFEST)
 	$(AAPT2) link \
 		-I $(ANDROID_JAR) \
-		--manifest AndroidManifest.xml \
+		--manifest $(GEN_MANIFEST) \
 		--min-sdk-version 24 \
 		--target-sdk-version 33 \
-		-A assets \
+		$(ASSET_FLAG) \
 		$(RESZIP) \
 		-o $(UNSIGNED)
 	zip -j -u $(UNSIGNED) $(OUT)/classes*.dex
-	(cd $(OUT) && zip -u ../$(UNSIGNED) lib/$(NATIVE_ABI)/*.so)
+	$(NATIVE_ZIP_CMD)
 
 $(ALIGNED): $(UNSIGNED)
 	rm -f $(ALIGNED)

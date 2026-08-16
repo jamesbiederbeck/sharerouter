@@ -30,9 +30,11 @@
             android:name=".JsEngineProbeActivity"
             android:exported="false" />
 
+        <!-- PAW:BEGIN -->
         <activity
             android:name=".PawActivity"
             android:exported="false" />
+        <!-- PAW:END -->
 
         <activity
             android:name=".GpxActivity"
