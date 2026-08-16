@@ -1,4 +1,4 @@
-package com.example.sharerouter;
+package dev.nobugs.sharerouter;
 
 import android.app.Activity;
 import android.os.Bundle;

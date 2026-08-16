@@ -1,4 +1,4 @@
-package com.example.sharerouter;
+package dev.nobugs.sharerouter;
 
 /**
  * Thin wrapper around llama_jni.so (native llama.cpp built for arm64-v8a via

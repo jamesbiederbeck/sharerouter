@@ -1,4 +1,4 @@
-APP_ID = com.example.sharerouter
+APP_ID = dev.nobugs.sharerouter
 
 # PAW=1 (default): full build with native llama.cpp/PAW inference support.
 # PAW=0: minimal build — PawActivity/LlamaBridge excluded from compilation
@@ -11,7 +11,7 @@ ALL_SRC := $(shell find src -name "*.java")
 ifeq ($(PAW),1)
 SRC := $(ALL_SRC)
 else
-SRC := $(filter-out src/com/example/sharerouter/PawActivity.java src/com/example/sharerouter/LlamaBridge.java src/com/example/sharerouter/LicensesActivity.java,$(ALL_SRC))
+SRC := $(filter-out src/dev/nobugs/sharerouter/PawActivity.java src/dev/nobugs/sharerouter/LlamaBridge.java src/dev/nobugs/sharerouter/LicensesActivity.java,$(ALL_SRC))
 endif
 
 LIBS := libs/javascriptengine-1.1.0.jar \
@@ -27,7 +27,7 @@ DEX = $(OUT)/classes.dex
 RESZIP = $(OUT)/compiled_res.zip
 
 GEN_DIR = $(OUT)/gen
-BUILD_CONFIG = $(GEN_DIR)/com/example/sharerouter/BuildConfig.java
+BUILD_CONFIG = $(GEN_DIR)/dev/nobugs/sharerouter/BuildConfig.java
 PAW_ENABLED = $(if $(filter 1,$(PAW)),true,false)
 
 UNSIGNED = unsigned.apk
@@ -78,7 +78,7 @@ $(R8_JAR):
 .PHONY: $(BUILD_CONFIG)
 $(BUILD_CONFIG):
 	mkdir -p $(dir $@)
-	echo 'package com.example.sharerouter; final class BuildConfig { static final boolean PAW_ENABLED = $(PAW_ENABLED); private BuildConfig() {} }' > $@.tmp
+	echo 'package dev.nobugs.sharerouter; final class BuildConfig { static final boolean PAW_ENABLED = $(PAW_ENABLED); private BuildConfig() {} }' > $@.tmp
 	cmp -s $@.tmp $@ 2>/dev/null && rm $@.tmp || mv $@.tmp $@
 
 # Only clears its own outputs (not the whole $(OUT) dir) so it doesn't race

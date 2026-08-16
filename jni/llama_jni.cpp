@@ -1,4 +1,4 @@
-// JNI bridge between com.example.sharerouter.LlamaBridge (Java) and llama.cpp.
+// JNI bridge between dev.nobugs.sharerouter.LlamaBridge (Java) and llama.cpp.
 // One llama_model/llama_context/llama_adapter_lora triple lives per JNI handle,
 // stored as the jlong returned from init() and passed back into generate()/free().
 
@@ -31,7 +31,7 @@ std::string jstringToStd(JNIEnv *env, jstring s) {
 }  // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_example_sharerouter_LlamaBridge_nativeInit(
+Java_dev_nobugs_sharerouter_LlamaBridge_nativeInit(
         JNIEnv *env, jclass, jstring jModelPath, jstring jAdapterPath, jint nCtx) {
     static bool backendInitialized = false;
     if (!backendInitialized) {
@@ -85,7 +85,7 @@ Java_com_example_sharerouter_LlamaBridge_nativeInit(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_sharerouter_LlamaBridge_nativeGenerate(
+Java_dev_nobugs_sharerouter_LlamaBridge_nativeGenerate(
         JNIEnv *env, jclass, jlong handle, jstring jPrompt, jint maxTokens) {
     auto *session = reinterpret_cast<Session *>(handle);
     if (session == nullptr) {
@@ -159,7 +159,7 @@ Java_com_example_sharerouter_LlamaBridge_nativeGenerate(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_sharerouter_LlamaBridge_nativeFree(JNIEnv *, jclass, jlong handle) {
+Java_dev_nobugs_sharerouter_LlamaBridge_nativeFree(JNIEnv *, jclass, jlong handle) {
     auto *session = reinterpret_cast<Session *>(handle);
     if (session == nullptr) {
         return;

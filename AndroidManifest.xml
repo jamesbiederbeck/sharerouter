@@ -1,4 +1,4 @@
-<manifest package="com.example.sharerouter"
+<manifest package="dev.nobugs.sharerouter"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-sdk

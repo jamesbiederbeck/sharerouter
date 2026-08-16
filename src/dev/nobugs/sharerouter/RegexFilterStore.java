@@ -1,4 +1,4 @@
-package com.example.sharerouter;
+package dev.nobugs.sharerouter;
 
 import android.content.Context;
 import android.content.SharedPreferences;

@@ -1,4 +1,4 @@
-package com.example.sharerouter;
+package dev.nobugs.sharerouter;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -19,8 +19,8 @@ import android.widget.TextView;
  */
 final class TopBar {
 
-    private static final String PAW_ACTIVITY_CLASS = "com.example.sharerouter.PawActivity";
-    private static final String LICENSES_ACTIVITY_CLASS = "com.example.sharerouter.LicensesActivity";
+    private static final String PAW_ACTIVITY_CLASS = "dev.nobugs.sharerouter.PawActivity";
+    private static final String LICENSES_ACTIVITY_CLASS = "dev.nobugs.sharerouter.LicensesActivity";
 
     private TopBar() {}
 
