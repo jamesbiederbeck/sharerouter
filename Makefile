@@ -11,7 +11,7 @@ ALL_SRC := $(shell find src -name "*.java")
 ifeq ($(PAW),1)
 SRC := $(ALL_SRC)
 else
-SRC := $(filter-out src/com/example/sharerouter/PawActivity.java src/com/example/sharerouter/LlamaBridge.java,$(ALL_SRC))
+SRC := $(filter-out src/com/example/sharerouter/PawActivity.java src/com/example/sharerouter/LlamaBridge.java src/com/example/sharerouter/LicensesActivity.java,$(ALL_SRC))
 endif
 
 LIBS := libs/javascriptengine-1.1.0.jar \

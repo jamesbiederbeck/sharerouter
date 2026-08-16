@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+env:
+  NDK_VERSION: 25.2.9519653
+  LLAMA_CPP_COMMIT: ece963f41b0b02d7a0d61436ae365762c073a4c8
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,21 +36,63 @@ jobs:
           RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: echo "$RELEASE_KEYSTORE_B64" | base64 -d > debug.keystore
 
-      - name: Build APK
+      - name: Build minimal APK (PAW=0, no native PAW inference)
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/33.0.1"
           export PATH="$BUILD_TOOLS:$PATH"
-          make \
+          make PAW=0 \
             ANDROID_JAR="$ANDROID_HOME/platforms/android-33/android.jar" \
             AAPT2="$BUILD_TOOLS/aapt2"
+          cp aligned.apk sharerouter-minimal.apk
+
+      - name: Install NDK, ninja
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$SDKMANAGER" "ndk;$NDK_VERSION"
+          sudo apt-get update -qq
+          sudo apt-get install -y ninja-build
+
+      - name: Build llama.cpp for arm64-v8a
+        run: |
+          git clone https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
+          git -C /tmp/llama.cpp checkout "$LLAMA_CPP_COMMIT"
+          NDK_DIR="$ANDROID_HOME/ndk/$NDK_VERSION"
+          cmake -B /tmp/llama.cpp/build-android -G Ninja -S /tmp/llama.cpp \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK_DIR/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DGGML_OPENMP=OFF \
+            -DLLAMA_BUILD_TESTS=OFF \
+            -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF \
+            -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_CURL=OFF
+          ninja -C /tmp/llama.cpp/build-android llama ggml
+
+      - name: Build full APK (PAW=1, native PAW inference)
+        run: |
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/33.0.1"
+          export PATH="$BUILD_TOOLS:$PATH"
+          make PAW=1 \
+            ANDROID_JAR="$ANDROID_HOME/platforms/android-33/android.jar" \
+            AAPT2="$BUILD_TOOLS/aapt2" \
+            NDK="$ANDROID_HOME/ndk/$NDK_VERSION" \
+            LLAMA_CPP_DIR=/tmp/llama.cpp
+          cp aligned.apk sharerouter-full.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sharerouter-apk
-          path: aligned.apk
+          name: sharerouter-apks
+          path: |
+            sharerouter-minimal.apk
+            sharerouter-full.apk
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: aligned.apk
+          files: |
+            sharerouter-minimal.apk
+            sharerouter-full.apk

@@ -10,15 +10,17 @@ import android.widget.TextView;
 
 /**
  * Shared hamburger/title bar used by MainActivity and (when built with
- * PAW=1, see BuildConfig.PAW_ENABLED) PawActivity to switch between them.
+ * PAW=1, see BuildConfig.PAW_ENABLED) PawActivity/LicensesActivity to
+ * navigate between them.
  *
- * Navigates to PawActivity by class name string rather than a PawActivity.class
- * literal so this file compiles unchanged whether or not PawActivity.java is
- * part of the build (the minimal/PAW=0 build excludes it entirely).
+ * Navigates to the PAW-only activities by class name string rather than a
+ * .class literal so this file compiles unchanged whether or not those
+ * classes are part of the build (the minimal/PAW=0 build excludes them).
  */
 final class TopBar {
 
     private static final String PAW_ACTIVITY_CLASS = "com.example.sharerouter.PawActivity";
+    private static final String LICENSES_ACTIVITY_CLASS = "com.example.sharerouter.LicensesActivity";
 
     private TopBar() {}
 
@@ -45,9 +47,18 @@ final class TopBar {
             popup.getMenu().add("Regex Filters");
             if (BuildConfig.PAW_ENABLED) {
                 popup.getMenu().add("PAW Inference");
+                popup.getMenu().add("Licenses");
             }
             popup.setOnMenuItemClickListener(item -> {
-                boolean wantsMain = "Regex Filters".equals(item.getTitle());
+                String choice = item.getTitle().toString();
+                if ("Licenses".equals(choice)) {
+                    // A subscreen, not a tab — push it onto the back stack
+                    // rather than finish()ing the current activity.
+                    activity.startActivity(new Intent().setClassName(activity, LICENSES_ACTIVITY_CLASS));
+                    return true;
+                }
+
+                boolean wantsMain = "Regex Filters".equals(choice);
                 boolean alreadyThere = wantsMain
                         ? currentActivity == MainActivity.class
                         : currentActivity.getName().equals(PAW_ACTIVITY_CLASS);
