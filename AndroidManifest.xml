@@ -33,7 +33,16 @@
         <!-- PAW:BEGIN -->
         <activity
             android:name=".PawActivity"
-            android:exported="false" />
+            android:label="@string/paw_share_label"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+        </activity>
 
         <activity
             android:name=".LicensesActivity"

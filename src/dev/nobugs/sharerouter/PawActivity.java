@@ -1,6 +1,7 @@
 package dev.nobugs.sharerouter;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -47,9 +48,18 @@ public class PawActivity extends Activity {
     private volatile LlamaBridge bridge;
     private volatile String promptTemplate;
 
+    // Set when launched as a share target (see AndroidManifest.xml's
+    // ACTION_SEND/text-plain intent-filter on this activity); prefills the
+    // input and auto-runs once the model finishes loading.
+    private String sharedText;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Intent.ACTION_SEND.equals(getIntent().getAction())) {
+            sharedText = getIntent().getStringExtra(Intent.EXTRA_TEXT);
+        }
 
         File pawDir = new File(getFilesDir(), "paw");
         pawDir.mkdirs();
@@ -80,6 +90,9 @@ public class PawActivity extends Activity {
 
         inputField = new EditText(this);
         inputField.setHint("Text to run through the PAW program");
+        if (sharedText != null) {
+            inputField.setText(sharedText);
+        }
         root.addView(inputField);
 
         runBtn = new Button(this);
@@ -126,6 +139,9 @@ public class PawActivity extends Activity {
             runOnUiThread(() -> {
                 statusView.setText("Model loaded.");
                 runBtn.setEnabled(true);
+                if (sharedText != null && !sharedText.isEmpty()) {
+                    runInference();
+                }
             });
         } catch (Exception e) {
             report("Failed to load model: " + e);
